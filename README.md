@@ -1,2 +1,3 @@
-# dsaft
-Deep Semi-parametric Accelerated-Failulre-Time (DSAFT) model
+# DSAFT: Deep Semi-parametric AFT models
+
+To be updated
