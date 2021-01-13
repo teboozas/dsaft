@@ -133,7 +133,7 @@ def dsaft_nkspl_loss(theta, durations, events,
     n = e_sorted.shape[0]
         
     # conditional expectation of exponential of residual
-    cond_E = kernel.log_prob(e_sorted.view(-1, 1).sub(e_sorted).div(an)).exp().mul(events_sorted).div(n * an).sum(dim = 1)
+    cond_E = kernel.log_prob(e_sorted.view(-1, 1).sub(e_sorted).div(an)).exp().mul(events_sorted).div(n * an).add(1e-32).sum(dim = 1)
     # conditional survival probability of exponential of residual
     surv = kernel.cdf(e_sorted.view(-1, 1).sub(e_sorted).div(an)).div(n).sum(dim = 1)
     
