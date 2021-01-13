@@ -141,9 +141,8 @@ def dsaft_nkspl_loss(theta, durations, events,
     surv = kernel.cdf(e_sorted.view(-1, 1).sub(e_sorted).div(an)).div(n).sum(dim = 1)
     
     # loss = - delta * (cond_E - surv - e_sorted + theta_sorted)
-    # loss = cond_E.log().sub(surv.log()).sub(e_sorted).sub(theta_sorted).mul(events_sorted).div(n).sum().neg()
-    # loss = cond_E.log().sub(surv.log()).sub(e_sorted).add(theta_sorted).mul(events_sorted).div(n).sum().neg()
-    loss = cond_E.log().sub(surv.log()).sub(theta_sorted).mul(events_sorted).div(n).sum().neg()
+    # loss = cond_E.log().sub(surv.log()).sub(theta_sorted).mul(events_sorted).div(n).sum().neg()
+    loss = cond_E.log().sub(surv.log()).sub(e_sorted).add(theta_sorted).mul(events_sorted).div(n).sum().neg()
     
     return loss
 
