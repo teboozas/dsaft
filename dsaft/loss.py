@@ -105,13 +105,15 @@ def dsaft_rmse_loss(theta, durations, events):
 ## DSAFT - negative kernel-smoothed profile likelihood loss function    
 def dsaft_nkspl_loss(theta, durations, events,
                      an = 1.0,
-                     kernel = torch.distributions.normal.Normal(0, 1)):
+                     sigma = 1.0,
+                     kernel = torch.distributions.normal.Normal(0, sigma)):
     '''
     theta: prediction output from DNN layers
     durations: log-scaled observed time (log(Y))
     events: right-censoring-indicator (delta)
     
     an: bandwidth parameter a_n for kernel smoothing (default = 1.0)
+    sigma: scale parameter of Gaussian kernel
     kernel: pre-defined kernel function for kernel smoothing of residual difference (K(.) in paper)
             (default: pdf of standard normal distribution)
     '''
@@ -134,13 +136,17 @@ def dsaft_nkspl_loss(theta, durations, events,
         
     # conditional expectation of exponential of residual
     cond_E = kernel.log_prob(e_sorted.view(-1, 1).sub(e_sorted).div(an)).exp().mul(events_sorted).div(n * an).add(1e-32).sum(dim = 1)
+    
     # conditional survival probability of exponential of residual
     surv = kernel.cdf(e_sorted.view(-1, 1).sub(e_sorted).div(an)).div(n).sum(dim = 1)
     
     # loss = - delta * (cond_E - surv - e_sorted + theta_sorted)
-    loss = cond_E.log().sub(surv.log()).sub(e_sorted).sub(theta_sorted).mul(events_sorted).div(n).sum().neg()
+    # loss = cond_E.log().sub(surv.log()).sub(e_sorted).sub(theta_sorted).mul(events_sorted).div(n).sum().neg()
+    # loss = cond_E.log().sub(surv.log()).sub(e_sorted).add(theta_sorted).mul(events_sorted).div(n).sum().neg()
+    loss = cond_E.log().sub(surv.log()).sub(theta_sorted).mul(events_sorted).div(n).sum().neg()
     
     return loss
+
 
 
 
