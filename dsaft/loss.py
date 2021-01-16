@@ -56,7 +56,7 @@ def dsaft_mae_loss(theta, durations, events):
     y_hat = events_sorted.mul(durations_sorted.add(1e-32).log().sub(imputed)).add(imputed)    
     
     # takes MAE form
-    loss = y_hat.sub(theta_sorted).abs().div(n)    
+    loss = y_hat.sub(theta_sorted).abs().sum().div(n)    
     
     return loss
 
