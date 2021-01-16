@@ -41,7 +41,7 @@ def dsaft_mae_loss(theta, durations, events):
     # get risk set and removed (instances whose events had been occured)
     diff_ = e_sorted.view(-1, 1).sub(e_sorted).sub(1e-32)
     removed = diff_.abs().div(diff_).relu()
-    at_risks = removed.neg().add(torch.ones(n, n).to(surv.device))    
+    at_risks = removed.neg().add(torch.ones(n, n).to(removed.device))    
 
     # estimate survival function of e_i via KM estimator
     surv = events_sorted.div(at_risks.sum(1)).sub(1).neg().abs().mul(removed).add(at_risks).prod(dim = 1)    
@@ -85,7 +85,7 @@ def dsaft_rmse_loss(theta, durations, events):
     # get risk set and removed (instances whose events had been occured)
     diff_ = e_sorted.view(-1, 1).sub(e_sorted).sub(1e-32)
     removed = diff_.abs().div(diff_).relu()
-    at_risks = removed.neg().add(torch.ones(n, n).to(surv.device))    
+    at_risks = removed.neg().add(torch.ones(n, n).to(removed.device))    
 
     # estimate survival function of e_i via KM estimator
     surv = events_sorted.div(at_risks.sum(1)).sub(1).neg().abs().mul(removed).add(at_risks).prod(dim = 1)    
