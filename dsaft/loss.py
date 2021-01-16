@@ -41,13 +41,13 @@ def dsaft_mae_loss(theta, durations, events):
     # get risk set and removed (instances whose events had been occured)
     diff_ = e_sorted.view(-1, 1).sub(e_sorted).sub(1e-32)
     removed = diff_.abs().div(diff_).relu()
-    at_risks = removed.neg().add(torch.ones(n, n))    
+    at_risks = removed.neg().add(torch.ones(n, n).to(surv.device))    
 
     # estimate survival function of e_i via KM estimator
     surv = events_sorted.div(at_risks.sum(1)).sub(1).neg().abs().mul(removed).add(at_risks).prod(dim = 1)    
 
     # estimate differential of F (cumulative density function) i.e. dF(u)
-    h = torch.cat([surv.neg().add(1)[1:], torch.ones(1)]).sub(torch.cat([torch.zeros(1), surv.neg().add(1)[:-1]]))    
+    h = torch.cat([surv.neg().add(1)[1:], torch.ones(1).to(surv.device)]).sub(torch.cat([torch.zeros(1).to(surv.device), surv.neg().add(1)[:-1]]))    
 
     # evaluate imputed y using conditional expected value of epsilon
     imputed = e_sorted.mul(h).mul(at_risks).sum(1).div(surv).add(theta_sorted)    
@@ -85,13 +85,13 @@ def dsaft_rmse_loss(theta, durations, events):
     # get risk set and removed (instances whose events had been occured)
     diff_ = e_sorted.view(-1, 1).sub(e_sorted).sub(1e-32)
     removed = diff_.abs().div(diff_).relu()
-    at_risks = removed.neg().add(torch.ones(n, n))    
+    at_risks = removed.neg().add(torch.ones(n, n).to(surv.device))    
 
     # estimate survival function of e_i via KM estimator
     surv = events_sorted.div(at_risks.sum(1)).sub(1).neg().abs().mul(removed).add(at_risks).prod(dim = 1)    
 
     # estimate differential of F (cumulative density function) i.e. dF(u)
-    h = torch.cat([surv.neg().add(1)[1:], torch.ones(1)]).sub(torch.cat([torch.zeros(1), surv.neg().add(1)[:-1]]))    
+    h = torch.cat([surv.neg().add(1)[1:], torch.ones(1).to(surv.device)]).sub(torch.cat([torch.zeros(1).to(surv.device), surv.neg().add(1)[:-1]]))    
 
     # evaluate imputed y using conditional expected value of epsilon
     imputed = e_sorted.mul(h).mul(at_risks).sum(1).div(surv).add(theta_sorted)    
