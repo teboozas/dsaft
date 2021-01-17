@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import warnings
 
-from loss import DSAFTRankLoss,DSAFTMAELoss,DSAFTRMSELoss,DSAFTNKSPLLoss
+from loss import DSAFTRankLoss,DSAFTMAELoss,DSAFTRMSELoss,DSAFTNKSPLLoss,DSAFTNKSPLLossNew
 
 def get_surv(model, x_test, timegrid = "train"):
     '''
@@ -233,7 +233,8 @@ if __name__ == "__main__":
     epochs = args.epochs
     callbacks = [tt.callbacks.EarlyStopping()]
     verbose = True
-    log = model.fit(x_train, y_train, batch_size, epochs, callbacks, verbose, val_data=val, val_batch_size=batch_size)
+    log = model.fit(x_train, y_train_transformed, batch_size, epochs, callbacks, verbose,
+                    val_data = val_transformed, val_batch_size = batch_size)
 
     # Evaluation ===================================================================
     surv = get_surv(model, x_test)
