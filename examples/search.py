@@ -164,13 +164,31 @@ if __name__ == "__main__":
     np.nan_to_num(x_train,copy=False)
     np.nan_to_num(x_val,copy=False)
     np.nan_to_num(x_test,copy=False)
-
+        
     get_target = lambda df: (df['duration'].values, df['event'].values)
     y_train = get_target(df_train)
     y_val = get_target(df_val)
     durations_test, events_test = get_target(df_test)
     val = x_val, y_val
 
+    # replace zero time-to-event value with minimum
+    def replace_zero(duration):
+        return np.where(duration <= 0.0, duration + np.sort(np.unique(duration))[1], duration)
+    
+    # log-transformed time-to-event variables with replacement of zero-valued instances
+    train_log_replace = np.log(replace_zero(y_train[0])).reshape(-1, 1)
+    val_log_replace = np.log(replace_zero(y_val[0])).reshape(-1, 1)
+    test_log_replace = np.log(replace_zero(durations_test)).reshape(-1, 1)
+    
+    # standardizer trained with training dataset
+    scaler_train = StandardScaler().fit(train_log_replace)
+    
+    # scaled time-to-event datasets for consistent training
+    y_train_transformed = (np.exp(scaler_train.transform(train_log_replace).reshape(-1)), y_train[1])
+    y_val_transformed = (np.exp(scaler_train.transform(val_log_replace).reshape(-1)), y_val[1])
+    val_transformed = x_val, y_val_transformed 
+    durations_test_transformed = np.exp(scaler_train.transform(test_log_replace).reshape(-1))
+   
     print(f'x_train.shape: {x_train.shape}')
     # Model preparation =============================================================    
     in_features = x_train.shape[1]
@@ -202,6 +220,8 @@ if __name__ == "__main__":
         model.loss = DSAFTRMSELoss()
     elif args.loss =='kspl':
         model.loss = DSAFTNKSPLLoss(args.an, args.sigma)
+    elif args.loss =='kspl_new':
+        model.loss = DSAFTNKSPLLossNew(args.an, args.sigma)
 
     # Training ======================================================================
     batch_size = args.batch_size
@@ -217,9 +237,9 @@ if __name__ == "__main__":
 
     # Evaluation ===================================================================
     surv = get_surv(model, x_test)
-    ev = EvalSurv(surv, durations_test, events_test, censor_surv='km')
+    ev = EvalSurv(surv, durations_test_transformed, events_test, censor_surv='km')
     ctd = ev.concordance_td()
-    time_grid = np.linspace(durations_test.min(), durations_test.max(), 100)
+    time_grid = np.linspace(durations_test_transformed.min(), durations_test_transformed.max(), 100)
     ibs = ev.integrated_brier_score(time_grid)
     nbll = ev.integrated_nbll(time_grid)
     val_loss = min(log.monitors['val_'].scores['loss']['score'])
