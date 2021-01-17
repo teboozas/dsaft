@@ -3,7 +3,7 @@ import pandas as pd
 import warnings
 from lifelines import NelsonAalenFitter
 
-def get_surv(model, x_test, timegrid = "train"):
+def get_surv(model, x_test, timegrid = None):
     '''
     model: PyCox model class or compatibles
     x_test: covariate dataset to compute survival estimates
