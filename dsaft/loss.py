@@ -23,9 +23,13 @@ def dsaft_mae_loss(theta, durations, events):
     durations: log-scaled observed time (log(Y))
     events: right-censoring-indicator (delta)
     '''
+    '''
+    theta: prediction output from DNN layers
+    durations: log-scaled observed time (log(Y))
+    events: right-censoring-indicator (delta)
+    '''
     # compute residual e_i
     e = theta.sub(durations.view(-1, 1).add(1e-32).log()).neg()
-    n = e.shape[0]
     
     # sort e_i w.r.t values and store sorted indices
     e_sorted = torch.sort(e.view(-1)).values
@@ -39,24 +43,23 @@ def dsaft_mae_loss(theta, durations, events):
     theta_sorted = tmp[:, 3]
     
     # get risk set and removed (instances whose events had been occured)
-    diff_ = e_sorted.view(-1, 1).sub(e_sorted).sub(1e-32)
-    removed = diff_.abs().div(diff_).relu()
-    at_risks = removed.neg().add(torch.ones(n, n).to(removed.device))    
-
+    at_risks = (e_sorted.view(-1, 1).sub(e_sorted) <= 0).mul(1)
+    removed = (e_sorted.view(-1, 1).sub(e_sorted) > 0).mul(1)
+    
     # estimate survival function of e_i via KM estimator
-    surv = events_sorted.div(at_risks.sum(1)).sub(1).neg().abs().mul(removed).add(at_risks).prod(dim = 1)    
-
+    surv = events_sorted.div(at_risks.sum(1)).sub(1).neg().abs().mul(removed).add(at_risks).prod(dim = 1)
+    
     # estimate differential of F (cumulative density function) i.e. dF(u)
-    h = torch.cat([surv.neg().add(1)[1:], torch.ones(1).to(surv.device)]).sub(torch.cat([torch.zeros(1).to(surv.device), surv.neg().add(1)[:-1]]))    
-
-    # evaluate imputed y using conditional expected value of epsilon
-    imputed = e_sorted.mul(h).mul(at_risks).sum(1).div(surv).add(theta_sorted)    
+    d_cdf = torch.cat([surv.sub(1).abs()[1:], torch.ones(1).to(surv.device)]).sub(surv.sub(1).abs())
     
-    # evaluate y_hat
-    y_hat = events_sorted.mul(durations_sorted.add(1e-32).log().sub(imputed)).add(imputed)    
+    # evaluate conditional expectation of epsilon
+    cond_E = e_sorted.mul(d_cdf).mul(at_risks).sum(dim = 1).div(surv)
     
-    # takes MAE form
-    loss = y_hat.sub(theta_sorted).abs().sum().div(n)    
+    # evaluate y_hat: imputed y
+    imputed = events_sorted.mul(durations_sorted.add(1e-32).log().sub(cond_E).sub(theta_sorted)).add(cond_E).add(theta_sorted)
+    
+    # takes MAE form rather than MSE for practically stable convergence
+    loss = imputed.sub(theta_sorted).abs().sum().mul(1 / e_sorted.shape[0])
     
     return loss
 
@@ -69,7 +72,6 @@ def dsaft_rmse_loss(theta, durations, events):
     '''
     # compute residual e_i
     e = theta.sub(durations.view(-1, 1).add(1e-32).log()).neg()
-    n = e.shape[0]
     
     # sort e_i w.r.t values and store sorted indices
     e_sorted = torch.sort(e.view(-1)).values
@@ -83,24 +85,23 @@ def dsaft_rmse_loss(theta, durations, events):
     theta_sorted = tmp[:, 3]
     
     # get risk set and removed (instances whose events had been occured)
-    diff_ = e_sorted.view(-1, 1).sub(e_sorted).sub(1e-32)
-    removed = diff_.abs().div(diff_).relu()
-    at_risks = removed.neg().add(torch.ones(n, n).to(removed.device))    
-
+    at_risks = (e_sorted.view(-1, 1).sub(e_sorted) <= 0).mul(1)
+    removed = (e_sorted.view(-1, 1).sub(e_sorted) > 0).mul(1)
+    
     # estimate survival function of e_i via KM estimator
-    surv = events_sorted.div(at_risks.sum(1)).sub(1).neg().abs().mul(removed).add(at_risks).prod(dim = 1)    
-
+    surv = events_sorted.div(at_risks.sum(1)).sub(1).neg().abs().mul(removed).add(at_risks).prod(dim = 1)
+    
     # estimate differential of F (cumulative density function) i.e. dF(u)
-    h = torch.cat([surv.neg().add(1)[1:], torch.ones(1).to(surv.device)]).sub(torch.cat([torch.zeros(1).to(surv.device), surv.neg().add(1)[:-1]]))    
-
-    # evaluate imputed y using conditional expected value of epsilon
-    imputed = e_sorted.mul(h).mul(at_risks).sum(1).div(surv).add(theta_sorted)    
+    d_cdf = torch.cat([surv.sub(1).abs()[1:], torch.ones(1).to(surv.device)]).sub(surv.sub(1).abs())
     
-    # evaluate y_hat
-    y_hat = events_sorted.mul(durations_sorted.add(1e-32).log().sub(imputed)).add(imputed)    
+    # evaluate conditional expectation of epsilon
+    cond_E = e_sorted.mul(d_cdf).mul(at_risks).sum(dim = 1).div(surv)
     
-    # takes RMSE form
-    loss = y_hat.sub(theta_sorted).pow(2).sum().div(n).pow(0.5)    
+    # evaluate y_hat: imputed y
+    imputed = events_sorted.mul(durations_sorted.add(1e-32).log().sub(cond_E).sub(theta_sorted)).add(cond_E).add(theta_sorted)
+    
+    # takes MAE form rather than MSE for practically stable convergence
+    loss = imputed.sub(theta_sorted).pow(2).sum().mul(1 / e_sorted.shape[0]).pow(0.5)
     
     return loss
 
@@ -143,9 +144,7 @@ def dsaft_nkspl_loss(theta, durations, events,
     # conditional survival probability of exponential of residual
     surv = kernel.cdf(e_sorted.view(-1, 1).sub(e_sorted).div(an)).div(n).sum(dim = 1)
     
-    # loss = - delta * (cond_E - surv - e_sorted + theta_sorted)
-    # loss = cond_E.log().sub(surv.log()).sub(e_sorted).add(theta_sorted).mul(events_sorted).div(n).sum().neg()
-    loss = cond_E.log().sub(surv.log()).sub(theta_sorted).mul(events_sorted).div(n).sum().neg()
+    loss = cond_E.log().sub(surv.log()).add(theta_sorted).mul(events_sorted).div(n).sum().neg()
     
     return loss
 
@@ -189,7 +188,7 @@ def dsaft_nkspl_loss_new(theta, durations, events,
     surv = kernel.cdf(e_sorted.view(-1, 1).sub(e_sorted).div(an)).div(n).sum(dim = 1)
     
     # loss = - delta * (cond_E - surv - e_sorted + theta_sorted)
-    loss = cond_E.log().sub(surv.log()).sub(e_sorted).add(theta_sorted).mul(events_sorted).div(n).sum().neg()
+    loss = cond_E.log().sub(surv.log()).sub(e_sorted).sub(theta_sorted).mul(events_sorted).div(n).sum().neg()
     
     return loss
 
