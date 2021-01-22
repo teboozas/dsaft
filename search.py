@@ -24,7 +24,8 @@ import warnings
 import math
 from pycox.preprocessing.feature_transforms import OrderedCategoricalLong
 from practical_kkbox import MixedInputMLP
-from loss import DSAFTRankLoss,DSAFTMAELoss,DSAFTRMSELoss,DSAFTNKSPLLossNew
+from loss import DSAFTRankLoss,DSAFTMAELoss,DSAFTRMSELoss,DSAFTNKSPLLoss, DSAFTNKSPLLossNew
+
 
 def get_surv(model, x_test, timegrid = None):
     '''
@@ -154,28 +155,6 @@ if __name__ == "__main__":
         cols_standardize = ['n_prev_churns', 'log_days_between_subs', 'log_days_since_reg_init' ,'age_at_start', 'log_payment_plan_days', 'log_plan_list_price', 'log_actual_amount_paid']
         cols_leave =['is_auto_renew', 'is_cancel', 'strange_age', 'nan_days_since_reg_init', 'no_prev_churns']
         cols_categorical = ['city', 'gender', 'registered_via']
-        # pdb.set_trace()
-        # num_embeddings = [len(pd.concat([df_train,df_val,df_test])[cat].unique())+1 for cat in cols_categorical]
-        # num_embeddings.append(pd.concat([df_train,df_val,df_test])[cols_categorical[-1]].unique())
-        # embedding_dims = [math.ceil(n_emb/2) for n_emb in num_embeddings]
-
-        # for cat in cols_categorical:
-        #     for i, value in enumerate(pd.concat([df_train,df_val,df_test])[cat].unique()):
-        #         df_train[cat].replace(value, i, inplace=True)
-        #         df_val[cat].replace(value, i, inplace=True)
-        #         df_test[cat].replace(value, i, inplace=True)
-                # df_train["gender"].replace('male', 1, inplace=True)
-                # df_train["gender"].replace('female', 2, inplace=True)
-                # df_train["gender"].replace(np.NaN, 0, inplace=True)
-                
-                # df_val["gender"].replace('male', 1, inplace=True)
-                # df_val["gender"].replace('female', 2, inplace=True)
-                # df_val["gender"].replace(np.NaN, 0, inplace=True)
-                
-                # df_test["gender"].replace('male', 1, inplace=True)
-                # df_test["gender"].replace('female', 2, inplace=True)
-                # df_test["gender"].replace(np.NaN, 0, inplace=True)
-        # pdb.set_trace()
 
     if not (args.dataset == 'kkobx'):
         df_test = df_train.sample(frac=0.2)
@@ -240,7 +219,7 @@ if __name__ == "__main__":
     model = CoxPH(net, optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay),device=device)
     
 
-    wandb.init(project='new_'+args.dataset, 
+    wandb.init(project='last_'+args.dataset, 
             group=args.loss,
             name=f'L{args.num_layers}N{args.num_nodes}D{args.dropout}W{args.weight_decay}B{args.batch_size}',
             config=args)
@@ -249,12 +228,15 @@ if __name__ == "__main__":
 
     # Loss configuration ============================================================
 
+    patience=10
     if args.loss =='rank':
         model.loss = DSAFTRankLoss()
     elif args.loss == 'mae':
         model.loss = DSAFTMAELoss()
     elif args.loss == 'rmse':
         model.loss = DSAFTRMSELoss()
+    elif args.loss =='kspl':
+        model.loss = DSAFTNKSPLLoss(args.an, args.sigma)
     elif args.loss =='kspl_new':
         model.loss = DSAFTNKSPLLossNew(args.an, args.sigma)
 
