@@ -17,6 +17,7 @@ from lifelines import KaplanMeierFitter
 import wandb
 import pdb
 from lifelines import NelsonAalenFitter
+from lifelines.utils import concordance_index
 import numpy as np
 import pandas as pd
 import warnings
@@ -41,14 +42,14 @@ def get_surv(model, x_test, timegrid = None):
     y_train, delta_train = target
     
     # compute residual from training data
-    exp_residual = np.nan_to_num(np.exp(np.log(y_train) - model.predict(x_train).reshape(-1)))
+    # exp_residual = np.nan_to_num(np.exp(np.log(y_train) - model.predict(x_train).reshape(-1)))
 
     # compute exp(-theta) from test data to evaluate accelerating component
     exp_predict = np.nan_to_num(np.exp(-model.predict(x_test)).reshape(-1))
     
     # estimate cumulative baseline hazard function
     # based on training dataset
-    H = NelsonAalenFitter().fit(exp_residual, event_observed = delta_train).cumulative_hazard_
+    H = NelsonAalenFitter().fit(y_train, event_observed = delta_train).cumulative_hazard_
     
     # extract timegrid and estimated hazards
     if timegrid == "train":
@@ -56,7 +57,7 @@ def get_surv(model, x_test, timegrid = None):
     else:
         max_time = max(H.index)
     
-    if H.shape[0] * exp_predict.shape[0] >= 5 * 10e7:        
+    if H.shape[0] * exp_predict.shape[0] >= 6 * 10e7:        
         l = round(5 * 10e7 / exp_predict.shape[0])
         time_grid = np.quantile(a = H.loc[H.index <= max_time].index.values,
                                 q = [i / l for i in range(l + 1)],
@@ -270,19 +271,14 @@ if __name__ == "__main__":
             net = net.to(device)
             model = CoxPH(net, optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay),device=device)
 
-            patience=20
             if args.loss =='rank':
                 model.loss = DSAFTRankLoss()
             elif args.loss == 'mae':
                 model.loss = DSAFTMAELoss()
             elif args.loss == 'rmse':
                 model.loss = DSAFTRMSELoss()
-            elif args.loss =='kspl':
-                model.loss = DSAFTNKSPLLoss(args.an, args.sigma)
-                patience=10
             elif args.loss =='kspl_new':
                 model.loss = DSAFTNKSPLLossNew(args.an, args.sigma)
-                patience=10
 
             wandb.init(project='new_'+args.dataset, #'debug',#
                     group=args.loss+f'_fold{fold}',
@@ -304,7 +300,10 @@ if __name__ == "__main__":
             # Evaluation ===================================================================
             surv = get_surv(model, x_test)
             ev = EvalSurv(surv, durations_test_transformed, events_test, censor_surv='km')
-            ctd = ev.concordance_td()
+            #ctd = ev.concordance_td()
+            ctd = concordance_index(event_times = durations_test_transformed,
+                                    predicted_scores = model.predict(x_test).reshape(-1),
+                                    event_observed = events_test)
             time_grid = np.linspace(durations_test_transformed.min(), durations_test_transformed.max(), 100)
             ibs = ev.integrated_brier_score(time_grid)
             nbll = ev.integrated_nbll(time_grid)
