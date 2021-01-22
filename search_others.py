@@ -14,10 +14,10 @@ from pycox.evaluation import EvalSurv
 import warnings
 from lifelines import KaplanMeierFitter
 
+from lifelines.utils import concordance_index
 import wandb
 import pdb
 from lifelines import NelsonAalenFitter
-from lifelines.utils import concordance_index
 import numpy as np
 import pandas as pd
 import warnings
@@ -28,6 +28,7 @@ from pycox.preprocessing.feature_transforms import OrderedCategoricalLong
 from loss import DSAFTRankLoss,DSAFTMAELoss,DSAFTRMSELoss,DSAFTNKSPLLoss, DSAFTNKSPLLossNew
 import pickle
 import os
+
 
 def get_surv(model, x_test, timegrid = None):
     '''
@@ -88,6 +89,7 @@ if __name__ == "__main__":
     parser.add_argument('--loss', type=str, default='rank')
     # parser.add_argument('--an', type=float, default=1.0)
     parser.add_argument('--sigma', type=float, default=1.0)
+    parser.add_argument('--start_fold', type=int, default=0)
     
 
     # parser.add_argument('--num_nodes', type=int, default=32)
@@ -193,12 +195,13 @@ if __name__ == "__main__":
     FINAL_CTD = []
     FINAL_IBS = []
     FINAL_NBLL = []
-    for fold in range(5):
+    for fold in range(args.start_fold,5):
         fold_ctd = []
         fold_ibs = []
         fold_nbll = []
         fold_val_loss = []
-        for i in range(300):
+        start_iter = 300-115 if (args.start_fold==3)and(fold==3) else 0
+        for i in range(start_iter, 300):
             args.num_layers = random.choice(list_num_layers)
             args.num_nodes = random.choice(list_num_nodes)
             args.batch_size = random.choice(list_batch_size)
@@ -221,14 +224,6 @@ if __name__ == "__main__":
                 x_val = x_mapper.transform(data_split[str(fold)]['valid']).astype('float32')
                 x_test = x_mapper.transform(data_split[str(fold)]['test']).astype('float32')
 
-            # x_train = x_mapper.fit_transform().astype('float32')
-            # x_val = x_mapper.transform().astype('float32')
-            # x_test = x_mapper.transform().astype('float32')
-    
-            # if args.dataset=='kkbox':
-            # np.nan_to_num(x_train,copy=False)
-            # np.nan_to_num(x_val,copy=False)
-            # np.nan_to_num(x_test,copy=False)
 
             get_target = lambda df: (df['duration'].values, df['event'].values)
             y_train = get_target(data_split[str(fold)]['train'])
@@ -271,16 +266,19 @@ if __name__ == "__main__":
             net = net.to(device)
             model = CoxPH(net, optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay),device=device)
 
+            patience=10
             if args.loss =='rank':
                 model.loss = DSAFTRankLoss()
             elif args.loss == 'mae':
                 model.loss = DSAFTMAELoss()
             elif args.loss == 'rmse':
                 model.loss = DSAFTRMSELoss()
+            elif args.loss =='kspl':
+                model.loss = DSAFTNKSPLLoss(args.an, args.sigma)
             elif args.loss =='kspl_new':
                 model.loss = DSAFTNKSPLLossNew(args.an, args.sigma)
 
-            wandb.init(project='new_'+args.dataset, #'debug',#
+            wandb.init(project='last_'+args.dataset, #'debug',#
                     group=args.loss+f'_fold{fold}',
                     name=f'L{args.num_layers}N{args.num_nodes}D{args.dropout}W{args.weight_decay}B{args.batch_size}',
                     config=args)
@@ -300,6 +298,7 @@ if __name__ == "__main__":
             # Evaluation ===================================================================
             surv = get_surv(model, x_test)
             ev = EvalSurv(surv, durations_test_transformed, events_test, censor_surv='km')
+            
             #ctd = ev.concordance_td()
             ctd = concordance_index(event_times = durations_test_transformed,
                                     predicted_scores = model.predict(x_test).reshape(-1),
