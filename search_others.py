@@ -200,7 +200,7 @@ if __name__ == "__main__":
         fold_ibs = []
         fold_nbll = []
         fold_val_loss = []
-        start_iter = 300-115 if (args.start_fold==3)and(fold==3) else 0
+        start_iter = 115 if (args.start_fold==3)and(fold==3) else 0
         for i in range(start_iter, 300):
             args.num_layers = random.choice(list_num_layers)
             args.num_nodes = random.choice(list_num_nodes)
