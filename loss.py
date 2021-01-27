@@ -189,7 +189,7 @@ def dsaft_nkspl_loss_new(theta, durations, events,
     surv = kernel.cdf(e_sorted.view(-1, 1).sub(e_sorted).div(an)).div(n).sum(dim = 1)
     
     # loss = - delta * (cond_E - surv - e_sorted + theta_sorted)
-    loss = cond_E.log().sub(surv.log()).sub(e_sorted).sub(theta_sorted).mul(events_sorted).div(n).sum().neg()
+    loss = cond_E.log().sub(surv.log()).sub(e_sorted).add(theta_sorted).mul(events_sorted).div(n).sum().neg()
     
     return loss
 
@@ -224,8 +224,11 @@ class DSAFTNKSPLLoss(torch.nn.Module):
         wandb.log({'loss':loss})
         return loss
 
-
 class DSAFTNKSPLLossNew(torch.nn.Module):
+    def __init__(self,an,sigma):
+        super(DSAFTNKSPLLossNew, self).__init__()
+        self.an = an
+        self.sigma = sigma
     def forward(self, log_h: Tensor, durations: Tensor, events: Tensor) -> Tensor:
         loss = dsaft_nkspl_loss_new(log_h, durations, events, an=self.an, sigma=self.sigma)
         wandb.log({'loss':loss})
