@@ -157,7 +157,7 @@ if __name__ == "__main__":
     net = net.to(device)
 
     if args.optimizer == 'AdamWR':
-        model = CoxTime(net,optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay),device=device, labtrans=labtrans)
+        model = CoxTime(net,optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay,cycle_eta_multiplier=0.8),device=device, labtrans=labtrans)
     lrfinder = model.lr_finder(x_train, y_train, batch_size, tolerance=2)
     lr = lrfinder.get_best_lr()
     model.optimizer.set_lr(lr)
