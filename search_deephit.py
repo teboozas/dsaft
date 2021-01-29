@@ -155,13 +155,13 @@ if __name__ == "__main__":
     batch_size = args.batch_size
     # net = tt.practical.MLPVanilla(in_features, num_nodes, out_features, batch_norm,
     #                             dropout, output_bias=output_bias)
-    net = MixedInputMLP(in_features, num_embeddings, embedding_dims, num_nodes, out_features, batch_norm, dropout, output_bias=output_bias)
+    net = MixedInputMLP(in_features, num_embeddings, embedding_dims, num_nodes, out_features, batch_norm=batch_norm, dropout=dropout, output_bias=output_bias)
     # net = Transformer(in_features, num_embeddings, num_nodes, out_features, batch_norm, dropout, output_bias=output_bias)
     # net = MixedInputMLPCoxTime(in_features, num_embeddings, embedding_dims, num_nodes, batch_norm, dropout)
     net = net.to(device)
 
     if args.optimizer == 'AdamWR':
-        model = DeepHitSingle(net,optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay), alpha=0.001, sigma=0.5, duration_index=labtrans.cuts)
+        model = DeepHitSingle(net,optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay,cycle_eta_multiplier=0.8), alpha=0.001, sigma=0.5, duration_index=labtrans.cuts)
     lr_finder = model.lr_finder(x_train, y_train, batch_size, tolerance=3)
     lr = lr_finder.get_best_lr()
     model.optimizer.set_lr(lr)
