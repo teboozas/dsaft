@@ -236,8 +236,6 @@ if __name__ == "__main__":
     surv = model.predict_surv_df(x_test)
     ev = EvalSurv(surv, durations_test, events_test, censor_surv='km')
     
-    surv = get_surv(model, x_test)
-    ev = EvalSurv(surv, durations_test_transformed, events_test, censor_surv='km')
     # ctd = ev.concordance_td()
     ctd = ev.concordance_td()
     time_grid = np.linspace(durations_test.min(), durations_test.max(), 100)
