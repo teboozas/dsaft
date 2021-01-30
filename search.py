@@ -13,7 +13,6 @@ from pycox.models import CoxPH
 from pycox.evaluation import EvalSurv
 import warnings
 from lifelines import KaplanMeierFitter
-
 import wandb
 import pdb
 from lifelines import NelsonAalenFitter
@@ -23,7 +22,7 @@ import pandas as pd
 import warnings
 import math
 from pycox.preprocessing.feature_transforms import OrderedCategoricalLong
-from practical_kkbox import MixedInputMLP
+from model import MixedInputMLP, Transformer
 from loss import DSAFTRankLoss,DSAFTMAELoss,DSAFTRMSELoss,DSAFTNKSPLLoss, DSAFTNKSPLLossNew
 
 
@@ -82,19 +81,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Survival analysis configuration')
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--device', type=int, default=0)
-    parser.add_argument('--dataset', type=str, default='metabric')
-    parser.add_argument('--loss', type=str, default='kspl')
+    parser.add_argument('--dataset', type=str, default='kkbox_v2')
+    parser.add_argument('--loss', type=str, default='rank')
+    parser.add_argument('--optimizer', type=str, default='AdamWR')
     parser.add_argument('--an', type=float, default=1.0)
     parser.add_argument('--sigma', type=float, default=1.0)
     
 
-    parser.add_argument('--num_nodes', type=int, default=32)
-    parser.add_argument('--num_layers', type=int, default=4)
-    parser.add_argument('--batch_size', type=int, default=256)
+    parser.add_argument('--num_nodes', type=int, default=256)
+    parser.add_argument('--num_layers', type=int, default=6)
+    parser.add_argument('--batch_size', type=int, default=1024)
     parser.add_argument('--epochs', type=int, default=512)
-    parser.add_argument('--lr', type=float, default=0.01)
+    parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--weight_decay', type=float, default=0.0)
-    parser.add_argument('--dropout', type=float, default=0.0)
+    parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--use_BN', action='store_true')
     parser.add_argument('--use_output_bias', action='store_true')
     
@@ -156,7 +156,24 @@ if __name__ == "__main__":
         cols_leave =['is_auto_renew', 'is_cancel', 'strange_age', 'nan_days_since_reg_init', 'no_prev_churns']
         cols_categorical = ['city', 'gender', 'registered_via']
 
-    if not (args.dataset == 'kkobx'):
+    elif args.dataset=='kkbox_v2':
+        from kkbox import _DatasetKKBoxAdmin
+        kkbox_v2 = _DatasetKKBoxAdmin()
+        try:
+            df_train = kkbox_v2.read_df()
+        except:
+            kkbox_v2.download_kkbox()
+            df_train = kkbox_v2.read_df()
+        cols_standardize = ['n_prev_churns', 'log_days_between_subs', 'log_days_since_reg_init' ,'age_at_start', 'log_payment_plan_days', 'log_plan_list_price', 'log_actual_amount_paid']
+        cols_leave =['is_auto_renew', 'is_cancel', 'strange_age', 'nan_days_since_reg_init', 'no_prev_churns']
+        cols_categorical = ['city', 'gender', 'registered_via','payment_method_id']
+
+    if args.dataset=='kkbox_v2':
+        df_test = df_train.sample(frac=0.25)
+        df_train = df_train.drop(df_test.index)
+        df_val = df_train.sample(frac=0.1)
+        df_train = df_train.drop(df_val.index)
+    elif not (args.dataset == 'kkobx'):
         df_test = df_train.sample(frac=0.2)
         df_train = df_train.drop(df_test.index)
         df_val = df_train.sample(frac=0.2)
@@ -170,9 +187,8 @@ if __name__ == "__main__":
     x_mapper_float = DataFrameMapper(standardize + leave)
     x_mapper_long = DataFrameMapper(categorical)
 
-    x_fit_transform = lambda df: tt.tuplefy(x_mapper_float.fit_transform(df), x_mapper_long.fit_transform(df))
-    x_transform = lambda df: tt.tuplefy(x_mapper_float.transform(df), x_mapper_long.transform(df))
-
+    x_fit_transform = lambda df: tt.tuplefy(x_mapper_float.fit_transform(df).astype(np.float32), x_mapper_long.fit_transform(df))
+    x_transform = lambda df: tt.tuplefy(x_mapper_float.transform(df).astype(np.float32), x_mapper_long.transform(df))
     x_train = x_fit_transform(df_train)
     x_val = x_transform(df_val)
     x_test = x_transform(df_test)
@@ -215,12 +231,19 @@ if __name__ == "__main__":
     # net = tt.practical.MLPVanilla(in_features, num_nodes, out_features, batch_norm,
     #                             dropout, output_bias=output_bias)
     net = MixedInputMLP(in_features, num_embeddings, embedding_dims, num_nodes, out_features, batch_norm, dropout, output_bias=output_bias)
+    # net = Transformer(in_features, num_embeddings, num_nodes, out_features, batch_norm, dropout, output_bias=output_bias)
     net = net.to(device)
-    model = CoxPH(net, optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay),device=device)
+
+    if args.optimizer == 'AdamWR':
+        model = CoxPH(net, optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay),device=device)
+    elif args.optimizer=='AdamW':
+        model = CoxPH(net, optimizer=tt.optim.AdamW(lr=args.lr, decoupled_weight_decay=args.weight_decay),device=device)
+    elif args.optimizer =='Adam':
+        model = CoxPH(net, optimizer=tt.optim.Adam(lr=args.lr, weight_decay=args.weight_decay),device=device)
     
 
-    wandb.init(project='last_'+args.dataset, 
-            group=args.loss,
+    wandb.init(project=args.dataset, 
+            group=args.loss+'_'+args.optimizer,
             name=f'L{args.num_layers}N{args.num_nodes}D{args.dropout}W{args.weight_decay}B{args.batch_size}',
             config=args)
 
@@ -242,10 +265,11 @@ if __name__ == "__main__":
 
     # Training ======================================================================
     batch_size = args.batch_size
-    # lrfinder = model.lr_finder(x_train, y_train, batch_size, tolerance=10)
-    # best = lrfinder.get_best_lr()
+    lrfinder = model.lr_finder(x_train, y_train, batch_size, tolerance=10)
+    best = lrfinder.get_best_lr()
 
-    model.optimizer.set_lr(args.lr)
+    # model.optimizer.set_lr(args.lr)
+    model.optimizer.set_lr(best)
     
     epochs = args.epochs
     callbacks = [tt.callbacks.EarlyStopping(patience=patience)]
