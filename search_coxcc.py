@@ -106,6 +106,18 @@ if __name__ == "__main__":
         cols_standardize = ['n_prev_churns', 'log_days_between_subs', 'log_days_since_reg_init' ,'age_at_start', 'log_payment_plan_days', 'log_plan_list_price', 'log_actual_amount_paid']
         cols_leave =['is_auto_renew', 'is_cancel', 'strange_age', 'nan_days_since_reg_init', 'no_prev_churns']
         cols_categorical = ['city', 'gender', 'registered_via']
+    elif args.dataset=='kkbox_v2':
+        from kkbox import _DatasetKKBoxAdmin
+        kkbox_v2 = _DatasetKKBoxAdmin()
+        try:
+            df_train = kkbox_v2.read_df()
+        except:
+            kkbox_v2.download_kkbox()
+            df_train = kkbox_v2.read_df()
+        cols_standardize = ['n_prev_churns', 'log_days_between_subs', 'log_days_since_reg_init' ,'age_at_start', 'log_payment_plan_days', 'log_plan_list_price', 'log_actual_amount_paid']
+        cols_leave =['is_auto_renew', 'is_cancel', 'strange_age', 'nan_days_since_reg_init', 'no_prev_churns']
+        cols_categorical = ['city', 'gender', 'registered_via','payment_method_id']
+
 
     if not (args.dataset == 'kkobx'):
         df_test = df_train.sample(frac=0.2)
@@ -121,8 +133,9 @@ if __name__ == "__main__":
     x_mapper_float = DataFrameMapper(standardize + leave)
     x_mapper_long = DataFrameMapper(categorical)
 
-    x_fit_transform = lambda df: tt.tuplefy(x_mapper_float.fit_transform(df), x_mapper_long.fit_transform(df))
-    x_transform = lambda df: tt.tuplefy(x_mapper_float.transform(df), x_mapper_long.transform(df))
+
+    x_fit_transform = lambda df: tt.tuplefy(x_mapper_float.fit_transform(df).astype(np.float32), x_mapper_long.fit_transform(df))
+    x_transform = lambda df: tt.tuplefy(x_mapper_float.transform(df).astype(np.float32), x_mapper_long.transform(df))
 
     x_train = x_fit_transform(df_train)
     x_val = x_transform(df_val)
