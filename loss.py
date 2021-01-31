@@ -9,12 +9,19 @@ def dsaft_rank_loss(theta, durations, events):
     durations: log-scaled observed time (log(Y))
     events: right-censoring-indicator (delta)
     '''
+    n = durations.shape[0]
     # compute residual e_i
-    e_vector = theta.sub(durations.view(-1,1).add(1e-32).log()).neg()
+    e = theta.sub(durations.view(-1,1).add(1e-32).log()).neg()
     
     # evaluate loss function based on formula,
     # mul(1 / e_vector.shape[0] ** 2) : scaling constant
-    return e_vector.sub(e_vector.view(-1)).mul(e_vector.sub(e_vector.view(-1))<=0).abs().mul(events.view(-1,1)).sum().mul(1 / e_vector.shape[0] ** 2)
+    loss = e.sub(e.view(-1)).mul(e.sub(e.view(-1))<=0).abs().mul(events.view(-1,1)).sum().mul(1 / n ** 2)
+    
+    # penalty terms
+    penalty_1 = e.pow(2).sum().div(n).mul(alpha)
+    penalty_2 = theta.pow(2).sum().div(n).mul(beta)
+
+    return loss + penalty_1 + penalty_2
 
 
 
@@ -197,8 +204,12 @@ def dsaft_nkspl_loss_new(theta, durations, events,
 
 ## Classes below
 class DSAFTRankLoss(torch.nn.Module):
+    def __init__(self,alpha,beta):
+        super(DSAFTRankLoss, self).__init__()
+        self.alpha = alpha
+        self.beta = beta
     def forward(self, log_h: Tensor, durations: Tensor, events: Tensor) -> Tensor:
-        loss = dsaft_rank_loss(log_h, durations, events)
+        loss = dsaft_rank_loss(log_h, durations, events, alpha = self.alpha, beta = self.beta)
         wandb.log({'loss':loss})
         return loss
 
