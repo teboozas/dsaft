@@ -47,8 +47,8 @@ def get_score(n, t, y_test, delta_test, naf_base, kmf_cens, cens_test, exp_predi
     second_bs = np.power(1 - surv_cond, 2) * indicator_second / cens_t
     bs = (first_bs + second_bs).sum() / n
     
-    first_nbll = np.log(1 - surv_cond) * indicator_first / cens_test
-    second_nbll = np.log(surv_cond) * indicator_second / cens_t
+    first_nbll = np.nan_to_num(np.log(1 - surv_cond)) * indicator_first / cens_test
+    second_nbll = np.nan_to_num(np.log(surv_cond)) * indicator_second / cens_t
     nbll = (first_nbll + second_nbll).sum() / n
     
     return (bs, nbll)
