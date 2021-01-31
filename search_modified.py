@@ -23,7 +23,7 @@ import warnings
 import math
 from pycox.preprocessing.feature_transforms import OrderedCategoricalLong
 from model import MixedInputMLP, Transformer
-from loss import DSAFTRankLoss,DSAFTMAELoss,DSAFTRMSELoss,DSAFTNKSPLLoss, DSAFTNKSPLLossNew
+from loss_modified import DSAFTRankLoss,DSAFTMAELoss,DSAFTRMSELoss,DSAFTNKSPLLoss, DSAFTNKSPLLossNew
 
 def get_score(n, t, y_test, delta_test, naf_base, kmf_cens, cens_test, exp_predict_neg_test, surv_residual, cens_residual, model):
     exp_residual_t = np.nan_to_num(np.exp(np.repeat(np.log(t),n) - model.predict(x_test).reshape(-1)))
@@ -49,6 +49,7 @@ def get_score(n, t, y_test, delta_test, naf_base, kmf_cens, cens_test, exp_predi
     
     first_nbll = np.nan_to_num(np.log(1 - surv_cond)) * indicator_first / cens_test
     second_nbll = np.nan_to_num(np.log(surv_cond)) * indicator_second / cens_t
+    # nbll = (first_nbll + second_nbll).sum() / n
     nbll = np.nan_to_num((first_nbll + second_nbll).sum()) / n
     
     return (bs, nbll)
@@ -253,18 +254,12 @@ if __name__ == "__main__":
         model = CoxPH(net, optimizer=tt.optim.Adam(lr=args.lr, weight_decay=args.weight_decay),device=device)
     
 
-    wandb.init(project=args.dataset, 
-            group=args.loss+'_'+args.optimizer,
-            name=f'L{args.num_layers}N{args.num_nodes}D{args.dropout}W{args.weight_decay}B{args.batch_size}',
-            config=args)
-
-    wandb.watch(net)
 
     # Loss configuration ============================================================
 
     patience=10
     if args.loss =='rank':
-        model.loss = DSAFTRankLoss(args.alpha, args.beta)
+        model.loss = DSAFTRankLoss(alpha=args.alpha, beta=args.beta)
     elif args.loss == 'mae':
         model.loss = DSAFTMAELoss()
     elif args.loss == 'rmse':
@@ -275,12 +270,18 @@ if __name__ == "__main__":
         model.loss = DSAFTNKSPLLossNew(args.an, args.sigma)
 
     # Training ======================================================================
+    wandb.init(project=args.dataset, 
+            group=args.loss+'_modified_'+args.optimizer,
+            name=f'L{args.num_layers}N{args.num_nodes}D{args.dropout}W{args.weight_decay}B{args.batch_size}',
+            config=args)
+
+    wandb.watch(net)
     batch_size = args.batch_size
     lrfinder = model.lr_finder(x_train, y_train, batch_size, tolerance=10)
     best = lrfinder.get_best_lr()
-
-    # model.optimizer.set_lr(args.lr)
-    model.optimizer.set_lr(best)
+    args.lr= best
+    model.optimizer.set_lr(args.lr)
+    # model.optimizer.set_lr(best)
     
     epochs = args.epochs
     callbacks = [tt.callbacks.EarlyStopping(patience=patience)]
@@ -312,4 +313,3 @@ if __name__ == "__main__":
                 'ibs':ibs,
                 'nbll':ibll})
     wandb.finish()
-
