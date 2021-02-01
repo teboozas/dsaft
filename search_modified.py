@@ -184,7 +184,7 @@ if __name__ == "__main__":
         df_train = df_train.drop(df_test.index)
         df_val = df_train.sample(frac=0.1)
         df_train = df_train.drop(df_val.index)
-    elif not (args.dataset == 'kkobx'):
+    elif not (args.dataset == 'kkbox'):
         df_test = df_train.sample(frac=0.2)
         df_train = df_train.drop(df_test.index)
         df_val = df_train.sample(frac=0.2)
