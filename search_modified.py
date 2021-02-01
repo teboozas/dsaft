@@ -38,7 +38,7 @@ def get_score(n, t, y_test, delta_test, naf_base, kmf_cens, cens_test, exp_predi
     elif cens_residual == False:
         cens_t = np.repeat(kmf_cens.survival_function_at_times(t).values, n)
 
-    surv_cond = np.exp(-(H_base * exp_predict_neg_test))
+    surv_cond = np.exp(-(H_base * exp_predict_neg_test)) - 1e-16
     
     indicator_first = (y_test <= t) * delta_test
     indicator_second = (y_test > t) * 1
@@ -47,14 +47,13 @@ def get_score(n, t, y_test, delta_test, naf_base, kmf_cens, cens_test, exp_predi
     second_bs = np.power(1 - surv_cond, 2) * indicator_second / cens_t
     bs = (first_bs + second_bs).sum() / n
     
-    first_nbll = np.nan_to_num(np.log(1 - surv_cond)) * indicator_first / cens_test
-    second_nbll = np.nan_to_num(np.log(surv_cond)) * indicator_second / cens_t
-    # nbll = (first_nbll + second_nbll).sum() / n
-    nbll = np.nan_to_num((first_nbll + second_nbll).sum()) / n
+    first_nbll = np.log(1 - surv_cond + 1e-16) * indicator_first / cens_test
+    second_nbll = np.log(surv_cond + 1e-16) * indicator_second / cens_t
+    nbll = (first_nbll + second_nbll).sum() / n
     
     return (bs, nbll)
 
-def get_scores(model, y_test, delta_test, time_grid, surv_residual = True, cens_residual = True):
+def get_scores(model, y_test, delta_test, time_grid, surv_residual = False, cens_residual = False):
     n = y_test.shape[0]
     x_train, target = model.training_data
     y_train, delta_train = target
@@ -79,7 +78,7 @@ def get_scores(model, y_test, delta_test, time_grid, surv_residual = True, cens_
     for t in time_grid:
         bs, nbll = get_score(n, t, y_test, delta_test, naf_base, kmf_cens, cens_test, exp_predict_neg_test, surv_residual, cens_residual, model)
         bss.append(bs)
-        nblls.append(nbll)
+        nblls.append(-nbll)
 
     return (np.array(bss), np.array(nblls))
 
