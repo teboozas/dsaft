@@ -214,7 +214,7 @@ if __name__ == "__main__":
                 model=CoxCC(net,optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay,cycle_eta_multiplier=0.8))
 
             wandb.init(project='icml_'+args.dataset+'_baseline', 
-                    group=f'coxtime_fold{fold}_'+args.loss,
+                    group=f'coxcc_fold{fold}_'+args.loss,
                     name=f'L{args.num_layers}N{args.num_nodes}D{args.dropout}W{args.weight_decay}B{args.batch_size}',
                     config=args)
 
