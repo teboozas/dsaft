@@ -147,6 +147,7 @@ if __name__ == "__main__":
     list_dropout=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
     list_an=[1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 5e-1, 1.0]
     list_alpha=[0.0, 1e-4, 1e-5, 1e-6, 1e-7]
+    list_lambda=[0.1, 0.01, 0.001, 0.0]
 
     # Training =====================================================================
     FINAL_CTD = []
@@ -171,6 +172,7 @@ if __name__ == "__main__":
             args.use_output_bias = False
             args.alpha=random.choice(list_alpha)
             args.beta =args.alpha
+            args.shrink = random.choice(list_lambda)
             
             print(f'[{fold} fold][{i+1}/300]')
             # print(args)
@@ -211,7 +213,7 @@ if __name__ == "__main__":
             net = net.to(device)
 
             if args.optimizer == 'AdamWR':
-                model=CoxCC(net,optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay,cycle_eta_multiplier=0.8))
+                model=CoxCC(net,optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay,cycle_eta_multiplier=0.8),shrink=args.shrink)
 
             wandb.init(project='icml_'+args.dataset+'_baseline', 
                     group=f'coxcc_fold{fold}_'+args.loss,
