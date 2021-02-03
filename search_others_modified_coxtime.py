@@ -146,6 +146,8 @@ if __name__ == "__main__":
     list_dropout=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
     list_an=[1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 5e-1, 1.0]
     list_alpha=[0.0, 1e-4, 1e-5, 1e-6, 1e-7]
+    list_lambda=[0.1, 0.01, 0.001, 0.0]
+    list_log_durations= [True, False]
 
     # Training =====================================================================
     FINAL_CTD = []
@@ -170,6 +172,8 @@ if __name__ == "__main__":
             args.use_output_bias = False
             args.alpha=random.choice(list_alpha)
             args.beta =args.alpha
+            args.log_duration = random.choice(list_log_durations)
+            args.shrink = random.choice(list_lambda)
             
             print(f'[{fold} fold][{i+1}/300]')
             # print(args)
@@ -186,7 +190,7 @@ if __name__ == "__main__":
                 x_val = x_mapper.transform(df_val).astype('float32')
                 x_test = x_mapper.transform(df_test).astype('float32')
 
-            labtrans = CoxTime.label_transform()
+            labtrans = CoxTime.label_transform(log_duration=args.log_duration)
             get_target = lambda df: (df['duration'].values, df['event'].values)
             y_train = labtrans.fit_transform(*get_target(df_train))
             y_val = labtrans.transform(*get_target(df_val))
@@ -211,7 +215,7 @@ if __name__ == "__main__":
             net = net.to(device)
 
             if args.optimizer == 'AdamWR':
-                model = CoxTime(net,optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay,cycle_eta_multiplier=0.8),device=device, labtrans=labtrans)
+                model = CoxTime(net,optimizer=tt.optim.AdamWR(lr=args.lr, decoupled_weight_decay=args.weight_decay,cycle_eta_multiplier=0.8),device=device, shrink=args.shrink, labtrans=labtrans)
 
             wandb.init(project='icml_'+args.dataset+'_baseline', 
                     group=f'coxtime_fold{fold}_'+args.loss,
