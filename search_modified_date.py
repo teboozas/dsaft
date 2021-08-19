@@ -112,18 +112,6 @@ if __name__ == "__main__":
         cols_standardize = ['n_prev_churns', 'log_days_between_subs', 'log_days_since_reg_init' ,'age_at_start', 'log_payment_plan_days', 'log_plan_list_price', 'log_actual_amount_paid']
         cols_categorical =['city', 'gender', 'registered_via','payment_method_id', 'is_auto_renew', 'is_cancel', 'strange_age', 'nan_days_since_reg_init', 'no_prev_churns']
 
-    if args.dataset=='kkbox_v2':
-        df_test = df_train.sample(frac=0.25)
-        df_train = df_train.drop(df_test.index)
-        df_val = df_train.sample(frac=0.1)
-        df_train = df_train.drop(df_val.index)
-    elif not (args.dataset == 'kkbox'):
-        df_test = df_train.sample(frac=0.2)
-        df_train = df_train.drop(df_test.index)
-        df_val = df_train.sample(frac=0.2)
-        df_train = df_train.drop(df_val.index)
-
-    
     end_t = df_train['duration'].max()
     covariates = list(df_train.columns)
     imputation_values = np.nanmedian(df_train, axis = 0)
@@ -153,6 +141,19 @@ if __name__ == "__main__":
     leave = [(col, None) for col in cols_leave_modified]
     x_mapper = DataFrameMapper(leave + standardize)
 
+        
+    if args.dataset=='kkbox_v2':
+        df_test = df_train.sample(frac=0.25)
+        df_train = df_train.drop(df_test.index)
+        df_val = df_train.sample(frac=0.1)
+        df_train = df_train.drop(df_val.index)
+    elif not (args.dataset == 'kkbox'):
+        df_test = df_train.sample(frac=0.2)
+        df_train = df_train.drop(df_test.index)
+        df_val = df_train.sample(frac=0.2)
+        df_train = df_train.drop(df_val.index)
+
+    
     x_train = x_mapper.fit_transform(df_train).astype('float32')
     x_val = x_mapper.transform(df_val).astype('float32')
     x_test = x_mapper.transform(df_test).astype('float32')
